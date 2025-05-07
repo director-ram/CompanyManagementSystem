@@ -1,13 +1,19 @@
 services:
   - type: web
     name: company-management-api
-    env: docker
-    buildCommand: dotnet publish -c Release -o out
-    startCommand: dotnet out/CompanyManagementSystem.dll
+    env: dotnet
+    buildCommand: dotnet build -c Release
+    startCommand: dotnet run -c Release
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
       - key: ASPNETCORE_URLS
         value: http://+:10000
+      - key: Jwt__Key
+        value: 8Zz5tw0Ionm3XPZZfN0NOml3z9FMfmpgXwovR9fp6ryDIoGRM8EPHAB6iHsc0fb
+      - key: Jwt__Issuer
+        value: https://company-management-api.onrender.com
+      - key: Jwt__Audience
+        value: https://my-app-sigma-virid-31.vercel.app
     healthCheckPath: /health
     autoDeploy: true 
