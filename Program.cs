@@ -142,21 +142,29 @@ app.MapGet("/health", () => Results.Ok("Healthy"));
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-    var context = services.GetRequiredService<AppDbContext>();
-
-    // Clear existing users to prevent duplicates
-    context.Users.RemoveRange(context.Users);
-    context.SaveChanges();
-
-    // Create admin user
-    var adminUser = new User
+    try
     {
-        Username = "admin",
-        PasswordHash = BCrypt.Net.BCrypt.HashPassword("password"),
-        PurchaseOrders = new List<PurchaseOrder>()
-    };
-    context.Users.Add(adminUser);
-    context.SaveChanges();
+        var context = services.GetRequiredService<AppDbContext>();
+        context.Database.EnsureCreated();
+
+        // Only create admin user if no users exist
+        if (!context.Users.Any())
+        {
+            var adminUser = new User
+            {
+                Username = "admin",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("password"),
+                PurchaseOrders = new List<PurchaseOrder>()
+            };
+            context.Users.Add(adminUser);
+            context.SaveChanges();
+        }
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while initializing the database.");
+    }
 }
 
 app.Run();

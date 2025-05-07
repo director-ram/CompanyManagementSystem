@@ -15,12 +15,16 @@ services:
       - key: Jwt__Issuer
         value: "https://company-management-api.onrender.com"
       - key: Jwt__Audience
-        value: "https://simple-po-manager-ui-hemasais-projects.vercel.app"
+        value: "https://simple-po-manager-dqeelw5qy-hemasais-projects.vercel.app"
+      - key: ASPNETCORE_URLS
+        value: "http://+:10000"
     healthCheckPath: /health
     autoDeploy: true
+    plan: free
 
 databases:
   - name: company-management-db
     databaseName: companymanagement
     user: companymanagement
-    plan: free 
+    plan: free
+    ipAllowList: [] 
