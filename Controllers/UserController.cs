@@ -88,28 +88,28 @@ namespace CompanyManagementSystem.Controllers
                 if (loginModel == null || string.IsNullOrEmpty(loginModel.Username) || string.IsNullOrEmpty(loginModel.Password))
                 {
                     _logger.LogWarning("Invalid login request: missing username or password");
-                    return BadRequest(new { message = "Invalid login request" });
-                }
+                return BadRequest(new { message = "Invalid login request" });
+            }
 
                 var user = _context.Users
                     .Where(u => string.Equals(u.Username, loginModel.Username, StringComparison.OrdinalIgnoreCase))
                     .FirstOrDefault();
 
-                if (user == null)
-                {
+            if (user == null)
+            {
                     _logger.LogWarning("Login failed: user not found - {Username}", loginModel.Username);
-                    return Unauthorized(new { message = "Invalid credentials" });
-                }
+                return Unauthorized(new { message = "Invalid credentials" });
+            }
 
-                if (!VerifyPassword(loginModel.Password, user.PasswordHash))
-                {
+            if (!VerifyPassword(loginModel.Password, user.PasswordHash))
+            {
                     _logger.LogWarning("Login failed: invalid password for user - {Username}", loginModel.Username);
-                    return Unauthorized(new { message = "Invalid credentials" });
-                }
+                return Unauthorized(new { message = "Invalid credentials" });
+            }
 
                 try
                 {
-                    var token = GenerateJwtToken(user);
+            var token = GenerateJwtToken(user);
                     _logger.LogInformation("Successfully generated JWT token for user: {Username}", user.Username);
 
                     return Ok(new LoginResponse
@@ -142,25 +142,25 @@ namespace CompanyManagementSystem.Controllers
                 var audience = _configuration["Jwt:Audience"] ?? throw new InvalidOperationException("JWT Audience not found in configuration");
 
                 var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-                var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-                var claims = new[]
-                {
-                    new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-                    new Claim(JwtRegisteredClaimNames.UniqueName, user.Username),
-                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-                };
+            var claims = new[]
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+                new Claim(JwtRegisteredClaimNames.UniqueName, user.Username),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            };
 
-                var token = new JwtSecurityToken(
+            var token = new JwtSecurityToken(
                     issuer: issuer,
                     audience: audience,
-                    claims: claims,
-                    expires: DateTime.Now.AddHours(24),
-                    signingCredentials: credentials
-                );
+                claims: claims,
+                expires: DateTime.Now.AddHours(24),
+                signingCredentials: credentials
+            );
 
-                return new JwtSecurityTokenHandler().WriteToken(token);
-            }
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error generating JWT token");
@@ -189,26 +189,26 @@ namespace CompanyManagementSystem.Controllers
                 if (registerModel == null || string.IsNullOrEmpty(registerModel.Username) || string.IsNullOrEmpty(registerModel.Password))
                 {
                     _logger.LogWarning("Invalid registration request: missing username or password");
-                    return BadRequest(new { message = "Invalid registration request" });
-                }
+                return BadRequest(new { message = "Invalid registration request" });
+            }
 
                 if (_context.Users.Any(u => u.Username == registerModel.Username))
-                {
+            {
                     _logger.LogWarning("Registration failed: username already exists - {Username}", registerModel.Username);
                     return BadRequest(new { message = "Username already exists" });
-                }
+            }
 
-                var user = new User
-                {
-                    Username = registerModel.Username,
+            var user = new User
+            {
+                Username = registerModel.Username,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerModel.Password),
                     FirstName = registerModel.FirstName ?? string.Empty,
                     LastName = registerModel.LastName ?? string.Empty,
                     Email = registerModel.Email ?? string.Empty
                 };
 
-                _context.Users.Add(user);
-                _context.SaveChanges();
+            _context.Users.Add(user);
+            _context.SaveChanges();
 
                 _logger.LogInformation("User registered successfully: {Username}", registerModel.Username);
                 return Ok(new RegisterResponse { Message = "User registered successfully" });

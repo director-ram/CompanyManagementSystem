@@ -7,12 +7,25 @@ using CompanyManagementSystem.Models;
 using CompanyManagementSystem.Services;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Identity;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseInMemoryDatabase("CompanyManagementSystem"));
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    if (string.IsNullOrEmpty(connectionString))
+    {
+        // Fallback to in-memory database for development
+        options.UseInMemoryDatabase("CompanyManagementSystem");
+    }
+    else
+    {
+        // Use PostgreSQL in production
+        options.UseNpgsql(connectionString);
+    }
+});
 
 // Add email services
 builder.Services.AddScoped<IEmailService, EmailService>();

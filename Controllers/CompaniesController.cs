@@ -26,14 +26,14 @@ namespace CompanyManagementSystem.Controllers
         private int GetCurrentUserId()
         {
             try
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
             {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-                if (userIdClaim == null)
-                {
                     _logger.LogWarning("User ID claim not found in token");
-                    throw new UnauthorizedAccessException("User ID not found in token");
-                }
-                return int.Parse(userIdClaim.Value);
+                throw new UnauthorizedAccessException("User ID not found in token");
+            }
+            return int.Parse(userIdClaim.Value);
             }
             catch (Exception ex)
             {
@@ -46,9 +46,9 @@ namespace CompanyManagementSystem.Controllers
         public ActionResult<IEnumerable<Company>> Get()
         {
             try
-            {
-                var userId = GetCurrentUserId();
-                return _context.Companies.Where(c => c.UserId == userId).ToList();
+        {
+            var userId = GetCurrentUserId();
+            return _context.Companies.Where(c => c.UserId == userId).ToList();
             }
             catch (UnauthorizedAccessException)
             {
@@ -62,14 +62,14 @@ namespace CompanyManagementSystem.Controllers
         }
 
         [HttpGet("{id}")]
-        public ActionResult<Company> Get(int id)
+        public ActionResult<Company> Get(int id) 
         {
             try
-            {
-                var userId = GetCurrentUserId();
-                var company = _context.Companies.FirstOrDefault(c => c.Id == id && c.UserId == userId);
-                if (company == null) return NotFound();
-                return company;
+        { 
+            var userId = GetCurrentUserId();
+            var company = _context.Companies.FirstOrDefault(c => c.Id == id && c.UserId == userId);
+            if (company == null) return NotFound(); 
+            return company; 
             }
             catch (UnauthorizedAccessException)
             {
@@ -83,13 +83,13 @@ namespace CompanyManagementSystem.Controllers
         }
 
         [HttpPost]
-        public ActionResult Post([FromBody] Company company)
+        public ActionResult Post([FromBody] Company company) 
         {
             try
-            {
-                company.UserId = GetCurrentUserId();
-                _context.Companies.Add(company);
-                _context.SaveChanges();
+        { 
+            company.UserId = GetCurrentUserId();
+            _context.Companies.Add(company); 
+            _context.SaveChanges(); 
                 return Ok(new { id = company.Id, message = "Company created successfully" });
             }
             catch (UnauthorizedAccessException)
@@ -104,17 +104,17 @@ namespace CompanyManagementSystem.Controllers
         }
 
         [HttpPut("{id}")]
-        public ActionResult Put(int id, [FromBody] Company company)
+        public ActionResult Put(int id, [FromBody] Company company) 
         {
             try
-            {
-                var userId = GetCurrentUserId();
+        { 
+            var userId = GetCurrentUserId();
                 var existingCompany = _context.Companies.FirstOrDefault(c => c.Id == id && c.UserId == userId);
                 if (existingCompany == null) return NotFound();
-
+            
                 existingCompany.Name = company.Name;
                 existingCompany.Address = company.Address;
-                _context.SaveChanges();
+            _context.SaveChanges(); 
                 return Ok(new { message = "Company updated successfully" });
             }
             catch (UnauthorizedAccessException)
@@ -132,19 +132,19 @@ namespace CompanyManagementSystem.Controllers
         public ActionResult Delete(int id)
         {
             try
+        {
+            var userId = GetCurrentUserId();
+            var company = _context.Companies.FirstOrDefault(c => c.Id == id && c.UserId == userId);
+            if (company == null) return NotFound();
+
+            // Check if the company has associated purchase orders
+            if (_context.PurchaseOrders.Any(po => po.CompanyId == id))
             {
-                var userId = GetCurrentUserId();
-                var company = _context.Companies.FirstOrDefault(c => c.Id == id && c.UserId == userId);
-                if (company == null) return NotFound();
+                return BadRequest("Cannot delete company with associated purchase orders.");
+            }
 
-                // Check if the company has associated purchase orders
-                if (_context.PurchaseOrders.Any(po => po.CompanyId == id))
-                {
-                    return BadRequest("Cannot delete company with associated purchase orders.");
-                }
-
-                _context.Companies.Remove(company);
-                _context.SaveChanges();
+            _context.Companies.Remove(company);
+            _context.SaveChanges();
                 return Ok(new { message = "Company deleted successfully" });
             }
             catch (UnauthorizedAccessException)
