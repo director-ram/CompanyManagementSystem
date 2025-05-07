@@ -15,11 +15,12 @@ services:
       - key: Jwt__Issuer
         value: "https://company-management-api.onrender.com"
       - key: Jwt__Audience
-        value: "https://simple-po-manager-cm7ushm44-hemasais-projects.vercel.app"
+        value: "https://simple-po-manager-ui-hemasais-projects.vercel.app"
     healthCheckPath: /health
     autoDeploy: true
 
 databases:
   - name: company-management-db
     databaseName: companymanagement
-    user: companymanagement 
+    user: companymanagement
+    plan: free 
