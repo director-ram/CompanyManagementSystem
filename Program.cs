@@ -76,7 +76,9 @@ builder.Services.AddCors(options =>
         builder.WithOrigins(
                 "http://localhost:5013",  // Development frontend
                 "http://localhost:3000",  // Alternative development port
-                "https://your-production-domain.com"  // Production frontend
+                "http://localhost:54320", // Production test port
+                "https://my-ebolje8um-hemasais-projects.vercel.app", // Vercel deployment
+                "https://simple-po-manager-ui.vercel.app" // Alternative Vercel domain
             )
             .AllowAnyMethod()
             .AllowAnyHeader()
