@@ -2,8 +2,8 @@ services:
   - type: web
     name: company-management-api
     env: dotnet
-    buildCommand: dotnet build -c Release
-    startCommand: dotnet run -c Release
+    buildCommand: dotnet publish -c Release -o out
+    startCommand: dotnet out/CompanyManagementSystem.dll
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
