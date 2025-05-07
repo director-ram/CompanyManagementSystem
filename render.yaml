@@ -1,19 +1,25 @@
 services:
   - type: web
     name: company-management-api
-    env: dotnet
-    buildCommand: dotnet publish -c Release -o out
-    startCommand: dotnet out/CompanyManagementSystem.dll
+    env: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
-      - key: ASPNETCORE_URLS
-        value: http://+:10000
+      - key: ConnectionStrings__DefaultConnection
+        fromDatabase:
+          name: company-management-db
+          property: connectionString
       - key: Jwt__Key
-        value: 8Zz5tw0Ionm3XPZZfN0NOml3z9FMfmpgXwovR9fp6ryDIoGRM8EPHAB6iHsc0fb
+        value: "8Zz5tw0Ionm3XPZZfN0NOml3z9FMfmpgXwovR9fp6ryDIoGRM8EPHAB6iHsc0fb"
       - key: Jwt__Issuer
-        value: https://company-management-api.onrender.com
+        value: "https://company-management-api.onrender.com"
       - key: Jwt__Audience
-        value: https://my-app-sigma-virid-31.vercel.app
+        value: "https://simple-po-manager-cm7ushm44-hemasais-projects.vercel.app"
     healthCheckPath: /health
-    autoDeploy: true 
+    autoDeploy: true
+
+databases:
+  - name: company-management-db
+    databaseName: companymanagement
+    user: companymanagement 
