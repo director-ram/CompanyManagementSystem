@@ -79,7 +79,9 @@ builder.Services.AddCors(options =>
                 "http://localhost:54320", // Production test port
                 "https://my-ebolje8um-hemasais-projects.vercel.app", // Vercel deployment
                 "https://simple-po-manager-ui.vercel.app", // Alternative Vercel domain
-                "https://simple-po-manager-71av8lzvg-hemasais-projects.vercel.app" // Latest Vercel deployment
+                "https://simple-po-manager-71av8lzvg-hemasais-projects.vercel.app", // Previous Vercel deployment
+                "https://my-igakwduns-hemasais-projects.vercel.app", // Previous Vercel deployment
+                "https://simple-po-manager-ui-hemasais-projects.vercel.app" // Latest Vercel deployment
             )
             .AllowAnyMethod()
             .AllowAnyHeader()
