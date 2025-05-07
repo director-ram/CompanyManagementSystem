@@ -9,6 +9,9 @@ namespace CompanyManagementSystem.Models
         {
             Username = string.Empty;
             PasswordHash = string.Empty;
+            FirstName = string.Empty;
+            LastName = string.Empty;
+            Email = string.Empty;
             PurchaseOrders = new List<PurchaseOrder>();
         }
 
@@ -16,6 +19,9 @@ namespace CompanyManagementSystem.Models
         public string Username { get; set; }
         // Add the PasswordHash property
         public string PasswordHash { get; set; }
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+        public string Email { get; set; }
         // Add other user properties as needed (e.g., Email, Role)
 
         // Navigation property for Purchase Orders (if you added UserId to PurchaseOrder)

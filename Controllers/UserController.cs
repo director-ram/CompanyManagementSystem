@@ -11,6 +11,8 @@ using CompanyManagementSystem.Data;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 
 namespace CompanyManagementSystem.Models
 {
@@ -21,6 +23,15 @@ namespace CompanyManagementSystem.Models
         
         [JsonPropertyName("password")]
         public required string Password { get; set; }
+
+        [JsonPropertyName("firstName")]
+        public string FirstName { get; set; } = string.Empty;
+
+        [JsonPropertyName("lastName")]
+        public string LastName { get; set; } = string.Empty;
+
+        [JsonPropertyName("email")]
+        public string Email { get; set; } = string.Empty;
     }
 }
 
@@ -39,6 +50,34 @@ namespace CompanyManagementSystem.Controllers
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
+
+        [Authorize]
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<User>>> GetUsers()
+        {
+            try
+            {
+                _logger.LogInformation("Attempting to fetch users");
+                var users = await _context.Users
+                    .Select(u => new User
+                    {
+                        Id = u.Id,
+                        Username = u.Username,
+                        FirstName = u.FirstName,
+                        LastName = u.LastName,
+                        Email = u.Email
+                    })
+                    .ToListAsync();
+
+                _logger.LogInformation("Successfully fetched {Count} users", users.Count);
+                return Ok(users);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving users");
+                return StatusCode(500, new { message = "An error occurred while retrieving users" });
+            }
         }
 
         [HttpPost("login")]
@@ -162,7 +201,10 @@ namespace CompanyManagementSystem.Controllers
                 var user = new User
                 {
                     Username = registerModel.Username,
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerModel.Password)
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerModel.Password),
+                    FirstName = registerModel.FirstName ?? string.Empty,
+                    LastName = registerModel.LastName ?? string.Empty,
+                    Email = registerModel.Email ?? string.Empty
                 };
 
                 _context.Users.Add(user);
