@@ -73,7 +73,11 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(builder =>
     {
-        builder.SetIsOriginAllowed(origin => true) // Allow any origin during development
+        builder.WithOrigins(
+                "http://localhost:5013",  // Development frontend
+                "http://localhost:3000",  // Alternative development port
+                "https://your-production-domain.com"  // Production frontend
+            )
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
