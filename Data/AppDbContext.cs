@@ -25,20 +25,36 @@ namespace CompanyManagementSystem.Data
                 .Property(po => po.TotalAmount)
                 .HasPrecision(18, 2);
 
-            modelBuilder.Entity<PurchaseOrder>()
-                .HasOne(po => po.Company)
-                .WithMany()
-                .HasForeignKey(po => po.CompanyId);
-
-            modelBuilder.Entity<LineItem>()
-                .HasOne(li => li.PurchaseOrder)
-                .WithMany(po => po.LineItems)
-                .HasForeignKey(li => li.PurchaseOrderId);
+            modelBuilder.Entity<Company>(entity =>
+            {
+                entity.Property(e => e.Name).IsRequired();
+                entity.Property(e => e.Address).IsRequired();
+                entity.Property(e => e.UserId).IsRequired();
                 
-            modelBuilder.Entity<PurchaseOrder>()
-                .HasOne(po => po.User)
-                .WithMany(u => u.PurchaseOrders)
-                .HasForeignKey(po => po.UserId);
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<PurchaseOrder>(entity =>
+            {
+                entity.HasOne(po => po.Company)
+                    .WithMany()
+                    .HasForeignKey(po => po.CompanyId)
+                    .IsRequired(false);
+
+                entity.HasOne(po => po.User)
+                    .WithMany(u => u.PurchaseOrders)
+                    .HasForeignKey(po => po.UserId);
+            });
+
+            modelBuilder.Entity<LineItem>(entity =>
+            {
+                entity.HasOne(li => li.PurchaseOrder)
+                    .WithMany(po => po.LineItems)
+                    .HasForeignKey(li => li.PurchaseOrderId);
+            });
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

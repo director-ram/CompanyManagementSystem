@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: company-management-api
+    env: docker
+    buildCommand: dotnet publish -c Release -o out
+    startCommand: dotnet out/CompanyManagementSystem.dll
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://+:10000
+    healthCheckPath: /health
+    autoDeploy: true 

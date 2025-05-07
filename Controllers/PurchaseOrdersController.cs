@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using CompanyManagementSystem.Data;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using Microsoft.Extensions.Logging;
+using System.Threading.Tasks;
 
 namespace CompanyManagementSystem.Controllers
 {
@@ -16,12 +18,17 @@ namespace CompanyManagementSystem.Controllers
     public class PurchaseOrdersController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly ILogger<PurchaseOrdersController> _logger;
 
-        public PurchaseOrdersController(AppDbContext context)
+        public PurchaseOrdersController(AppDbContext context, ILogger<PurchaseOrdersController> logger)
         {
-            _context = context;
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
+        /// <summary>
+        /// Gets the current authenticated user's ID from claims
+        /// </summary>
         private int GetCurrentUserId()
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
@@ -32,42 +39,21 @@ namespace CompanyManagementSystem.Controllers
             return int.Parse(userIdClaim.Value);
         }
 
+        /// <summary>
+        /// Gets all purchase orders for the current user
+        /// </summary>
         [HttpGet]
-        public ActionResult<List<PurchaseOrder>> Get()
+        public async Task<ActionResult<List<PurchaseOrder>>> Get()
         {
             try
             {
                 var userId = GetCurrentUserId();
-                var purchaseOrders = _context.PurchaseOrders
+                var purchaseOrders = await _context.PurchaseOrders
                     .Include(po => po.LineItems)
+                    .Include(po => po.Company)
                     .Where(po => po.UserId == userId)
-                    .ToList();
-                
-                foreach (var order in purchaseOrders)
-                {
-                    if (order.CompanyId.HasValue)
-                    {
-                        try
-                        {
-                            order.Company = _context.Companies.Find(order.CompanyId!.Value) ?? new Company 
-                            { 
-                                Id = order.CompanyId.Value,
-                                Name = "Unknown Company", 
-                                Address = "Unknown Address" 
-                            };
-                        }
-                        catch
-                        {
-                            order.Company = new Company 
-                            { 
-                                Id = order.CompanyId.Value,
-                                Name = "Unknown Company", 
-                                Address = "Unknown Address" 
-                            };
-                        }
-                    }
-                }
-                
+                    .ToListAsync();
+
                 return purchaseOrders;
             }
             catch (UnauthorizedAccessException)
@@ -76,44 +62,40 @@ namespace CompanyManagementSystem.Controllers
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error retrieving purchase orders: {ex.Message}");
-                return new List<PurchaseOrder>();
+                _logger.LogError(ex, "Error retrieving purchase orders");
+                return StatusCode(500, new { message = "An error occurred while retrieving purchase orders" });
             }
         }
 
+        /// <summary>
+        /// Gets a specific purchase order by ID
+        /// </summary>
         [HttpGet("{id}")]
-        public ActionResult<PurchaseOrder> Get(int id)
+        public async Task<ActionResult<PurchaseOrder>> Get(int id)
         {
             try
             {
                 var userId = GetCurrentUserId();
-                var purchaseOrder = _context.PurchaseOrders
+                var purchaseOrder = await _context.PurchaseOrders
                     .Include(po => po.LineItems)
-                    .FirstOrDefault(po => po.Id == id && po.UserId == userId);
+                    .FirstOrDefaultAsync(po => po.Id == id && po.UserId == userId);
                 
                 if (purchaseOrder == null) return NotFound();
-                
+
                 if (purchaseOrder.CompanyId.HasValue)
                 {
-                    try
-                    {
-                        purchaseOrder.Company = _context.Companies.Find(purchaseOrder.CompanyId!.Value) ?? new Company 
-                        { 
-                            Id = purchaseOrder.CompanyId.Value,
-                            Name = "Unknown Company", 
-                            Address = "Unknown Address" 
-                        };
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.Error.WriteLine($"Error loading company for purchase order {id}: {ex.Message}");
-                        purchaseOrder.Company = new Company 
-                        { 
-                            Id = purchaseOrder.CompanyId.Value,
-                            Name = "Unknown Company", 
-                            Address = "Unknown Address" 
-                        };
-                    }
+                    var company = await _context.Companies
+                        .Where(c => c.Id == purchaseOrder.CompanyId.Value)
+                        .Select(c => new Company
+                        {
+                            Id = c.Id,
+                            Name = c.Name,
+                            Address = c.Address,
+                            UserId = c.UserId
+                        })
+                        .FirstOrDefaultAsync();
+                        
+                    purchaseOrder.Company = company;
                 }
                 
                 return purchaseOrder;
@@ -124,13 +106,16 @@ namespace CompanyManagementSystem.Controllers
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error retrieving purchase order {id}: {ex.Message}");
-                return StatusCode(500, new { message = $"Error retrieving purchase order: {ex.Message}" });
+                _logger.LogError(ex, "Error retrieving purchase order {Id}", id);
+                return StatusCode(500, new { message = "An error occurred while retrieving the purchase order" });
             }
         }
 
+        /// <summary>
+        /// Creates a new purchase order
+        /// </summary>
         [HttpPost]
-        public ActionResult Post([FromBody] PurchaseOrderDto purchaseOrderDto)
+        public async Task<ActionResult> Post([FromBody] PurchaseOrderDto purchaseOrderDto)
         {
             if (purchaseOrderDto == null)
             {
@@ -139,22 +124,48 @@ namespace CompanyManagementSystem.Controllers
 
             if (!purchaseOrderDto.CompanyId.HasValue)
             {
-                return BadRequest("CompanyId is required. CompanyId: " + purchaseOrderDto.CompanyId);
+                return BadRequest("CompanyId is required.");
+            }
+
+            if (purchaseOrderDto.LineItems == null || !purchaseOrderDto.LineItems.Any())
+            {
+                return BadRequest("At least one line item is required.");
+            }
+
+            // Validate line items
+            foreach (var lineItem in purchaseOrderDto.LineItems)
+            {
+                if (lineItem.Quantity <= 0)
+                {
+                    return BadRequest($"Invalid quantity for product {lineItem.ProductId}. Quantity must be greater than 0.");
+                }
+                if (lineItem.UnitPrice < 0)
+                {
+                    return BadRequest($"Invalid unit price for product {lineItem.ProductId}. Price cannot be negative.");
+                }
+            }
+
+            // Validate order date
+            if (purchaseOrderDto.OrderDate.Date < DateTime.Today)
+            {
+                return BadRequest("Order date cannot be in the past.");
             }
 
             try
             {
                 var userId = GetCurrentUserId();
-                var company = _context.Companies.Find(purchaseOrderDto.CompanyId);
+                var company = await _context.Companies
+                    .FirstOrDefaultAsync(c => c.Id == purchaseOrderDto.CompanyId && c.UserId == userId);
+
                 if (company == null)
                 {
-                    return BadRequest("Company not found. CompanyId: " + purchaseOrderDto.CompanyId.Value);
+                    return BadRequest($"Company not found or you don't have access to it. CompanyId: {purchaseOrderDto.CompanyId.Value}");
                 }
 
                 var purchaseOrder = new PurchaseOrder
                 {
                     CompanyId = purchaseOrderDto.CompanyId.Value,
-                    Company = company,
+                    Company = null,
                     OrderDate = purchaseOrderDto.OrderDate,
                     TotalAmount = purchaseOrderDto.TotalAmount,
                     NotificationEmail = purchaseOrderDto.NotificationEmail,
@@ -162,40 +173,34 @@ namespace CompanyManagementSystem.Controllers
                     LineItems = new List<LineItem>()
                 };
 
-                // Set notification time if email is provided
                 if (!string.IsNullOrEmpty(purchaseOrder.NotificationEmail))
                 {
-                    // If order date is today, set notification for 10 seconds from now
-                    if (purchaseOrder.OrderDate.Date == DateTime.Today)
-                    {
-                        purchaseOrder.NotificationTime = DateTime.Now.AddSeconds(10);
-                    }
-                    else
-                    {
-                        // For future dated orders, keep the default 5 minute delay
-                        purchaseOrder.NotificationTime = DateTime.Now.AddMinutes(5);
-                    }
+                    purchaseOrder.NotificationTime = purchaseOrder.OrderDate.Date == DateTime.Today
+                        ? DateTime.Now.AddSeconds(10)
+                        : DateTime.Now.AddMinutes(5);
                 }
 
-                if (purchaseOrderDto.LineItems != null)
+                foreach (var lineItemDto in purchaseOrderDto.LineItems)
                 {
-                    foreach (var lineItemDto in purchaseOrderDto.LineItems)
+                    var lineItem = new LineItem
                     {
-                        var lineItem = new LineItem
-                        {
-                            ProductId = lineItemDto.ProductId,
-                            Quantity = lineItemDto.Quantity,
-                            UnitPrice = lineItemDto.UnitPrice,
-                            PurchaseOrder = purchaseOrder
-                        };
-                        purchaseOrder.LineItems.Add(lineItem);
-                        _context.LineItems.Add(lineItem);
-                    }
+                        ProductId = lineItemDto.ProductId,
+                        Quantity = lineItemDto.Quantity,
+                        UnitPrice = lineItemDto.UnitPrice
+                    };
+                    purchaseOrder.LineItems.Add(lineItem);
+                }
+
+                // Validate total amount matches line items
+                var calculatedTotal = purchaseOrder.LineItems.Sum(li => li.Quantity * li.UnitPrice);
+                if (Math.Abs(calculatedTotal - purchaseOrder.TotalAmount) > 0.01m)
+                {
+                    return BadRequest("Total amount does not match the sum of line items.");
                 }
 
                 _context.PurchaseOrders.Add(purchaseOrder);
-                _context.SaveChanges();
-                return Ok();
+                await _context.SaveChangesAsync();
+                return Ok(new { id = purchaseOrder.Id, message = "Purchase order created successfully" });
             }
             catch (UnauthorizedAccessException)
             {
@@ -203,25 +208,37 @@ namespace CompanyManagementSystem.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Purchase order creation failed: " + ex.Message + ". purchaseOrderDto: " + System.Text.Json.JsonSerializer.Serialize(purchaseOrderDto) });
+                _logger.LogError(ex, "Error creating purchase order");
+                return StatusCode(500, new { message = "An error occurred while creating the purchase order" });
             }
         }
 
+        /// <summary>
+        /// Deletes a purchase order by ID
+        /// </summary>
         [HttpDelete("{id}")]
-        public ActionResult Delete(int id)
+        public async Task<ActionResult> Delete(int id)
         {
             try
             {
                 var userId = GetCurrentUserId();
-                var purchaseOrder = _context.PurchaseOrders.FirstOrDefault(po => po.Id == id && po.UserId == userId);
+                var purchaseOrder = await _context.PurchaseOrders
+                    .Include(po => po.LineItems)
+                    .FirstOrDefaultAsync(po => po.Id == id && po.UserId == userId);
+                
                 if (purchaseOrder == null)
                 {
-                    return NotFound();
+                    return NotFound($"Purchase order with ID {id} not found or you don't have access to it.");
+                }
+
+                if (purchaseOrder.LineItems != null)
+                {
+                    _context.LineItems.RemoveRange(purchaseOrder.LineItems);
                 }
 
                 _context.PurchaseOrders.Remove(purchaseOrder);
-                _context.SaveChanges();
-                return Ok();
+                await _context.SaveChangesAsync();
+                return Ok(new { message = $"Purchase order {id} deleted successfully" });
             }
             catch (UnauthorizedAccessException)
             {
@@ -229,8 +246,8 @@ namespace CompanyManagementSystem.Controllers
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error deleting purchase order {id}: {ex.Message}");
-                return StatusCode(500, new { message = $"Error deleting purchase order: {ex.Message}" });
+                _logger.LogError(ex, "Error deleting purchase order {Id}", id);
+                return StatusCode(500, new { message = "An error occurred while deleting the purchase order" });
             }
         }
 

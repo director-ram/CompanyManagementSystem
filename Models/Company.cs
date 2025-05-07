@@ -1,11 +1,27 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace CompanyManagementSystem.Models
 {
     public class Company
     {
-        // ... properties
-        public int Id { get; set; }
-public required string Name { get; set; }
-public required string Address { get; set; }
+        public Company()
+        {
+            Name = string.Empty;
+            Address = string.Empty;
+        }
 
+        public int Id { get; set; }
+        
+        [Required]
+        public string Name { get; set; }
+        
+        [Required]
+        public string Address { get; set; }
+        
+        [Required]
+        public int UserId { get; set; }
+        
+        public User? User { get; set; }
     }
 }

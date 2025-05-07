@@ -18,36 +18,66 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddHostedService<PurchaseOrderNotificationService>();
 
-// Add JWT Authentication
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+// Configure JWT Authentication
+var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not found in configuration");
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("JWT Issuer not found in configuration");
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? throw new InvalidOperationException("JWT Audience not found in configuration");
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        options.TokenValidationParameters = new TokenValidationParameters
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+        ClockSkew = TimeSpan.Zero
+    };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "Your_Actual_Secret_Key_Here_With_Minimum_32_Bytes_Length_For_HS256_Algorithm"))
-        };
-    });
+            if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
+            {
+                context.Response.Headers["Token-Expired"] = "true";
+            }
+            return Task.CompletedTask;
+        },
+        OnTokenValidated = context =>
+        {
+            Console.WriteLine("Token validated successfully");
+            return Task.CompletedTask;
+        },
+        OnChallenge = context =>
+        {
+            Console.WriteLine($"Authentication challenge: {context.Error}, {context.ErrorDescription}");
+            return Task.CompletedTask;
+        }
+    };
+});
 
 builder.Services.AddControllers();
 builder.Services.AddAuthorization();
 
-// Add CORS services
+// Configure CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll",
-        builder =>
-        {
-            builder.AllowAnyOrigin()
-                   .AllowAnyMethod()
-                   .AllowAnyHeader();
-        });
+    options.AddDefaultPolicy(builder =>
+    {
+        builder.WithOrigins("https://your-frontend-domain.com")
+               .AllowAnyMethod()
+               .AllowAnyHeader()
+               .AllowCredentials();
+    });
 });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -62,46 +92,35 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-//app.UseHttpsRedirection();
-
-// Enable CORS
-app.UseCors("AllowAll");
-
+app.UseHttpsRedirection();
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
+// Add health check endpoint
+app.MapGet("/health", () => Results.Ok("Healthy"));
+
+// Initialize the database with an admin user
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var context = services.GetRequiredService<AppDbContext>();
 
-    // Create the database if it doesn't exist
-    context.Database.EnsureCreated();
+    // Clear existing users to prevent duplicates
+    context.Users.RemoveRange(context.Users);
+    context.SaveChanges();
 
-    // Always recreate the admin user to ensure consistent credentials
-    // First remove any existing admin user
-    var existingAdmin = context.Users.FirstOrDefault(u => u.Username == "admin");
-    if (existingAdmin != null)
-    {
-        context.Users.Remove(existingAdmin);
-        context.SaveChanges();
-    }
-
-    // Create a new admin user with known credentials
+    // Create admin user
     var adminUser = new User
     {
         Username = "admin",
-        PasswordHash = BCrypt.Net.BCrypt.HashPassword("password"), // Hash the password
-        PurchaseOrders = new List<PurchaseOrder>() // Initialize PurchaseOrders
+        PasswordHash = BCrypt.Net.BCrypt.HashPassword("password"),
+        PurchaseOrders = new List<PurchaseOrder>()
     };
-
-    // Add the admin user to the database
     context.Users.Add(adminUser);
     context.SaveChanges();
-
-    Console.WriteLine("Admin user created with username: 'admin' and password: 'password'");
 }
 
 app.Run();
